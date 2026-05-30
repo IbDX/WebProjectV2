@@ -75,15 +75,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── DELETE CLIENT (logical) ────────────────────────────
+    // ── DELETE CLIENT (permanent) ──────────────────────────
     if ($action === 'delete' && has_permission(PERM_DEL_CLIENT)) {
         $acc = trim($_POST['account_number'] ?? '');
         if ($acc) {
-            $stmt = $conn->prepare("UPDATE clients SET is_deleted=1 WHERE account_number=? AND is_deleted=0");
-            $stmt->bind_param('s', $acc);
-            $stmt->execute();
-            $stmt->close();
-            $msg = "Client \"$acc\" has been successfully deleted.";
+            $conn->begin_transaction();
+            try {
+                // Verify the client exists before attempting deletion
+                $chk = $conn->prepare("SELECT full_name FROM clients WHERE account_number = ? LIMIT 1");
+                $chk->bind_param('s', $acc);
+                $chk->execute();
+                $clientRow = $chk->get_result()->fetch_assoc();
+                $chk->close();
+
+                if (!$clientRow) {
+                    throw new Exception('Client not found.');
+                }
+
+                // Delete associated transactions first (FK: transactions → clients ON DELETE RESTRICT)
+                $delTxn = $conn->prepare("DELETE FROM transactions WHERE account_number = ?");
+                $delTxn->bind_param('s', $acc);
+                $delTxn->execute();
+                $delTxn->close();
+
+                // Now permanently delete the client row
+                $delClient = $conn->prepare("DELETE FROM clients WHERE account_number = ?");
+                $delClient->bind_param('s', $acc);
+                $delClient->execute();
+                $delClient->close();
+
+                $conn->commit();
+                $msg = "Client \"$acc\" and all associated transactions have been permanently deleted.";
+            } catch (Exception $ex) {
+                $conn->rollback();
+                $msg = 'Deletion failed: ' . $ex->getMessage();
+                $type = 'error';
+            }
         } else {
             $msg = 'Invalid account.'; $type = 'error';
         }
@@ -323,13 +350,17 @@ include 'includes/header.php';
         </div>
         <div class="modal-body">
             <p style="font-size:14px;color:var(--text-dark);margin-bottom:12px">
-                Are you sure you want to delete the following client?
+                Are you sure you want to permanently delete the following client?
             </p>
             <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
                 <strong id="delClientName" style="font-size:14px"></strong>
             </div>
             <div class="alert alert-warning" style="margin-bottom:0">
-                ⚠ This client will be deactivated and hidden from all views. The record is preserved in the database for audit purposes.
+                <span style="flex-shrink:0">⚠</span>
+                <div>
+                    <strong>This action cannot be undone.</strong><br>
+                    The client record and all associated transactions will be permanently removed from the database.
+                </div>
             </div>
         </div>
         <form method="POST" action="clients.php">

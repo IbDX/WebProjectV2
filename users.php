@@ -106,12 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── DELETE USER (logical) ───────────────────────────────
+    // ── DELETE USER (permanent) ───────────────────────────
     if ($action === 'delete') {
         $uname = trim($_POST['username'] ?? '');
 
         // Protect full-access users
-        $chk = $conn->prepare("SELECT permissions FROM users WHERE username=? AND is_deleted=0");
+        $chk = $conn->prepare("SELECT permissions FROM users WHERE username=?");
         $chk->bind_param('s', $uname);
         $chk->execute();
         $existing = $chk->get_result()->fetch_assoc();
@@ -122,11 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ((int)$existing['permissions'] === PERM_FULL) {
             $msg = "Cannot delete a Full Access user."; $type = 'error';
         } else {
-            $stmt = $conn->prepare("UPDATE users SET is_deleted=1 WHERE username=? AND is_deleted=0");
+            $stmt = $conn->prepare("DELETE FROM users WHERE username=?");
             $stmt->bind_param('s', $uname);
             $stmt->execute();
             $stmt->close();
-            $msg = "User \"$uname\" has been successfully deleted.";
+            $msg = "User \"$uname\" has been permanently deleted.";
         }
         header("Location: users.php?msg=" . urlencode($msg) . "&type=$type");
         exit;
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Fetch users ──────────────────────────────────────────────
 $users = $conn->query(
-    "SELECT username, permissions, created_at FROM users WHERE is_deleted=0 ORDER BY created_at DESC"
+    "SELECT username, permissions, created_at FROM users ORDER BY created_at DESC"
 )->fetch_all(MYSQLI_ASSOC);
 
 $permMap = [
@@ -352,13 +352,17 @@ include 'includes/header.php';
         </div>
         <div class="modal-body">
             <p style="font-size:14px;color:var(--text-dark);margin-bottom:12px">
-                Are you sure you want to delete the following user?
+                Are you sure you want to permanently delete the following user?
             </p>
             <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
                 <strong id="delUserLabel" style="font-size:14px"></strong>
             </div>
             <div class="alert alert-warning" style="margin-bottom:0">
-                ⚠ This user will be deactivated and will no longer be able to log in. The record is preserved for audit purposes.
+                <span style="flex-shrink:0">⚠</span>
+                <div>
+                    <strong>This action cannot be undone.</strong><br>
+                    The user account will be permanently removed from the database.
+                </div>
             </div>
         </div>
         <form method="POST" action="users.php">
