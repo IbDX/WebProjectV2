@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 //  config/db.php — Database Connection & Permission Constants
-//  Prototype Bank | AppServ / MySQLi
+//  Prototype Bank | AppServ / MySQLi (procedural)
 // ============================================================
 
 // ---- Database Credentials ----------------------------------
@@ -27,10 +27,10 @@ define('PERM_MANAGE_USERS',  32);   // ManageUsers
 define('PERM_TRANSACTIONS',  64);   // Transactions
 
 // ---- Connect -----------------------------------------------
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
 
-if ($conn->connect_error) {
-    $err = htmlspecialchars($conn->connect_error, ENT_QUOTES, 'UTF-8');
+if (!$conn) {
+    $err = htmlspecialchars(mysqli_connect_error(), ENT_QUOTES, 'UTF-8');
     http_response_code(503);
     die(<<<HTML
     <!DOCTYPE html>
@@ -66,4 +66,4 @@ if ($conn->connect_error) {
     HTML);
 }
 
-$conn->set_charset('utf8mb4');
+mysqli_set_charset($conn, 'utf8mb4');

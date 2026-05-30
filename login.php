@@ -21,17 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($username === '' || $password === '') {
         $error = 'Please enter both username and password.';
     } else {
-        $stmt = $conn->prepare(
+        $stmt = mysqli_prepare($conn,
             "SELECT username, password, permissions
              FROM users
              WHERE username = ? AND is_deleted = 0
              LIMIT 1"
         );
-        $stmt->bind_param('s', $username);
-        $stmt->execute();
-        $res  = $stmt->get_result();
-        $user = $res->fetch_assoc();
-        $stmt->close();
+        mysqli_stmt_bind_param($stmt, 's', $username);
+        mysqli_stmt_execute($stmt);
+        $res  = mysqli_stmt_get_result($stmt);
+        $user = mysqli_fetch_assoc($res);
+        mysqli_stmt_close($stmt);
 
         if ($user && $user['password'] === md5($password)) {
             // Regenerate session ID to prevent fixation

@@ -26,25 +26,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$acc || $amount <= 0) {
             $formError = 'Please provide a valid account and a positive amount.';
         } else {
-            $stmt = $conn->prepare("SELECT full_name FROM clients WHERE account_number=? AND is_deleted=0");
-            $stmt->bind_param('s', $acc);
-            $stmt->execute();
-            $client = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $stmt = mysqli_prepare($conn, "SELECT full_name FROM clients WHERE account_number=? AND is_deleted=0");
+            mysqli_stmt_bind_param($stmt, 's', $acc);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $client = mysqli_fetch_assoc($res);
+            mysqli_stmt_close($stmt);
 
             if (!$client) {
                 $formError = "Account \"$acc\" not found or is inactive.";
             } else {
                 // Update balance
-                $upd = $conn->prepare("UPDATE clients SET balance = balance + ? WHERE account_number = ?");
-                $upd->bind_param('ds', $amount, $acc);
-                $upd->execute();
-                $upd->close();
+                $upd = mysqli_prepare($conn, "UPDATE clients SET balance = balance + ? WHERE account_number = ?");
+                mysqli_stmt_bind_param($upd, 'ds', $amount, $acc);
+                mysqli_stmt_execute($upd);
+                mysqli_stmt_close($upd);
                 // Insert transaction
-                $ins = $conn->prepare("INSERT INTO transactions (account_number, type, amount) VALUES (?, 'Deposit', ?)");
-                $ins->bind_param('sd', $acc, $amount);
-                $ins->execute();
-                $ins->close();
+                $ins = mysqli_prepare($conn, "INSERT INTO transactions (account_number, type, amount) VALUES (?, 'Deposit', ?)");
+                mysqli_stmt_bind_param($ins, 'sd', $acc, $amount);
+                mysqli_stmt_execute($ins);
+                mysqli_stmt_close($ins);
 
                 header("Location: transactions.php?msg=" . urlencode("Deposit of " . fmt_money($amount) . " to {$client['full_name']} successful.") . "&type=success");
                 exit;
@@ -61,26 +62,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$acc || $amount <= 0) {
             $formError = 'Please provide a valid account and a positive amount.';
         } else {
-            $stmt = $conn->prepare("SELECT full_name, balance FROM clients WHERE account_number=? AND is_deleted=0");
-            $stmt->bind_param('s', $acc);
-            $stmt->execute();
-            $client = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $stmt = mysqli_prepare($conn, "SELECT full_name, balance FROM clients WHERE account_number=? AND is_deleted=0");
+            mysqli_stmt_bind_param($stmt, 's', $acc);
+            mysqli_stmt_execute($stmt);
+            $res = mysqli_stmt_get_result($stmt);
+            $client = mysqli_fetch_assoc($res);
+            mysqli_stmt_close($stmt);
 
             if (!$client) {
                 $formError = "Account \"$acc\" not found or is inactive.";
             } elseif ($client['balance'] < $amount) {
                 $formError = "Insufficient balance. Available: " . fmt_money($client['balance']);
             } else {
-                $upd = $conn->prepare("UPDATE clients SET balance = balance - ? WHERE account_number = ?");
-                $upd->bind_param('ds', $amount, $acc);
-                $upd->execute();
-                $upd->close();
+                $upd = mysqli_prepare($conn, "UPDATE clients SET balance = balance - ? WHERE account_number = ?");
+                mysqli_stmt_bind_param($upd, 'ds', $amount, $acc);
+                mysqli_stmt_execute($upd);
+                mysqli_stmt_close($upd);
 
-                $ins = $conn->prepare("INSERT INTO transactions (account_number, type, amount) VALUES (?, 'Withdraw', ?)");
-                $ins->bind_param('sd', $acc, $amount);
-                $ins->execute();
-                $ins->close();
+                $ins = mysqli_prepare($conn, "INSERT INTO transactions (account_number, type, amount) VALUES (?, 'Withdraw', ?)");
+                mysqli_stmt_bind_param($ins, 'sd', $acc, $amount);
+                mysqli_stmt_execute($ins);
+                mysqli_stmt_close($ins);
 
                 header("Location: transactions.php?msg=" . urlencode("Withdrawal of " . fmt_money($amount) . " from {$client['full_name']} successful.") . "&type=success");
                 exit;
@@ -100,63 +102,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($sender === $receiver) {
             $formError = 'Sender and receiver accounts cannot be the same.';
         } else {
-            $conn->begin_transaction();
+            mysqli_begin_transaction($conn);
             try {
                 // Lock sender row
-                $stmt = $conn->prepare(
+                $stmt = mysqli_prepare($conn,
                     "SELECT full_name, balance FROM clients
                      WHERE account_number = ? AND is_deleted = 0
                      FOR UPDATE"
                 );
-                $stmt->bind_param('s', $sender);
-                $stmt->execute();
-                $senderData = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
+                mysqli_stmt_bind_param($stmt, 's', $sender);
+                mysqli_stmt_execute($stmt);
+                $res = mysqli_stmt_get_result($stmt);
+                $senderData = mysqli_fetch_assoc($res);
+                mysqli_stmt_close($stmt);
                 if (!$senderData) throw new Exception("Sender account \"$sender\" not found.");
                 if ((float)$senderData['balance'] < $amount) {
                     throw new Exception("Insufficient sender balance. Available: " . fmt_money($senderData['balance']));
                 }
 
                 // Lock receiver row
-                $stmt = $conn->prepare(
+                $stmt = mysqli_prepare($conn,
                     "SELECT full_name FROM clients
                      WHERE account_number = ? AND is_deleted = 0
                      FOR UPDATE"
                 );
-                $stmt->bind_param('s', $receiver);
-                $stmt->execute();
-                $receiverData = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
+                mysqli_stmt_bind_param($stmt, 's', $receiver);
+                mysqli_stmt_execute($stmt);
+                $res = mysqli_stmt_get_result($stmt);
+                $receiverData = mysqli_fetch_assoc($res);
+                mysqli_stmt_close($stmt);
                 if (!$receiverData) throw new Exception("Receiver account \"$receiver\" not found.");
 
                 // Deduct from sender
-                $stmt = $conn->prepare("UPDATE clients SET balance = balance - ? WHERE account_number = ?");
-                $stmt->bind_param('ds', $amount, $sender);
-                $stmt->execute();
-                $stmt->close();
+                $stmt = mysqli_prepare($conn, "UPDATE clients SET balance = balance - ? WHERE account_number = ?");
+                mysqli_stmt_bind_param($stmt, 'ds', $amount, $sender);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
 
                 // Add to receiver
-                $stmt = $conn->prepare("UPDATE clients SET balance = balance + ? WHERE account_number = ?");
-                $stmt->bind_param('ds', $amount, $receiver);
-                $stmt->execute();
-                $stmt->close();
+                $stmt = mysqli_prepare($conn, "UPDATE clients SET balance = balance + ? WHERE account_number = ?");
+                mysqli_stmt_bind_param($stmt, 'ds', $amount, $receiver);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
 
                 // Insert single transaction record (from sender's perspective)
-                $stmt = $conn->prepare(
+                $stmt = mysqli_prepare($conn,
                     "INSERT INTO transactions (account_number, type, amount, target_account)
                      VALUES (?, 'Transfer', ?, ?)"
                 );
-                $stmt->bind_param('sds', $sender, $amount, $receiver);
-                $stmt->execute();
-                $stmt->close();
+                mysqli_stmt_bind_param($stmt, 'sds', $sender, $amount, $receiver);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
 
-                $conn->commit();
+                mysqli_commit($conn);
                 $successMsg = "Transfer of " . fmt_money($amount) . " from {$senderData['full_name']} to {$receiverData['full_name']} completed.";
                 header("Location: transactions.php?msg=" . urlencode($successMsg) . "&type=success");
                 exit;
 
             } catch (Exception $ex) {
-                $conn->rollback();
+                mysqli_rollback($conn);
                 $formError = $ex->getMessage();
             }
         }
@@ -164,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── Transaction history ──────────────────────────────────────
-$histRes = $conn->query(
+$histRes = mysqli_query($conn,
     "SELECT t.id, t.account_number, t.type, t.amount, t.target_account, t.timestamp,
             c.full_name
      FROM transactions t
@@ -172,13 +176,21 @@ $histRes = $conn->query(
      ORDER BY t.timestamp DESC
      LIMIT 50"
 );
-$history = $histRes->fetch_all(MYSQLI_ASSOC);
+$history = [];
+while ($row = mysqli_fetch_assoc($histRes)) {
+    $history[] = $row;
+}
 
 // ── Client list for account dropdowns ────────────────────────
-$clientRes  = $conn->query(
+$clientRes  = mysqli_query($conn,
     "SELECT account_number, full_name FROM clients WHERE is_deleted=0 ORDER BY full_name ASC"
 );
-$clientList = $clientRes ? $clientRes->fetch_all(MYSQLI_ASSOC) : [];
+$clientList = [];
+if ($clientRes) {
+    while ($row = mysqli_fetch_assoc($clientRes)) {
+        $clientList[] = $row;
+    }
+}
 
 // Pre-select chosen account when form re-renders after a validation error
 $selDep = ($activeTab === 0) ? ($_POST['account_number']   ?? '') : '';

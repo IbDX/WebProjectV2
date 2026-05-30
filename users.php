@@ -37,22 +37,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Username and password are required.'; $type = 'error';
         } else {
             // Duplicate check
-            $chk = $conn->prepare("SELECT 1 FROM users WHERE username = ?");
-            $chk->bind_param('s', $uname);
-            $chk->execute();
-            $exists = (bool)$chk->get_result()->fetch_row();
-            $chk->close();
+            $chk = mysqli_prepare($conn, "SELECT 1 FROM users WHERE username = ?");
+            mysqli_stmt_bind_param($chk, 's', $uname);
+            mysqli_stmt_execute($chk);
+            $chkRes = mysqli_stmt_get_result($chk);
+            $exists = (bool)mysqli_fetch_row($chkRes);
+            mysqli_stmt_close($chk);
 
             if ($exists) {
                 $msg = "Username \"$uname\" already exists."; $type = 'error';
             } else {
                 $hashed = md5($pass);
-                $stmt   = $conn->prepare(
+                $stmt   = mysqli_prepare($conn,
                     "INSERT INTO users (username, password, permissions) VALUES (?, ?, ?)"
                 );
-                $stmt->bind_param('ssi', $uname, $hashed, $perms);
-                $stmt->execute();
-                $stmt->close();
+                mysqli_stmt_bind_param($stmt, 'ssi', $uname, $hashed, $perms);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
                 $msg = "User \"$uname\" created successfully.";
             }
         }
@@ -65,11 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uname = trim($_POST['username'] ?? '');
 
         // Protect full-access users from modification
-        $chk = $conn->prepare("SELECT permissions FROM users WHERE username=? AND is_deleted=0");
-        $chk->bind_param('s', $uname);
-        $chk->execute();
-        $existing = $chk->get_result()->fetch_assoc();
-        $chk->close();
+        $chk = mysqli_prepare($conn, "SELECT permissions FROM users WHERE username=? AND is_deleted=0");
+        mysqli_stmt_bind_param($chk, 's', $uname);
+        mysqli_stmt_execute($chk);
+        $chkRes  = mysqli_stmt_get_result($chk);
+        $existing = mysqli_fetch_assoc($chkRes);
+        mysqli_stmt_close($chk);
 
         if (!$existing) {
             $msg = "User not found."; $type = 'error';
@@ -92,14 +94,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newPass = trim($_POST['password'] ?? '');
             if ($newPass !== '') {
                 $hashed = md5($newPass);
-                $stmt   = $conn->prepare("UPDATE users SET password=?, permissions=? WHERE username=?");
-                $stmt->bind_param('sis', $hashed, $perms, $uname);
+                $stmt   = mysqli_prepare($conn, "UPDATE users SET password=?, permissions=? WHERE username=?");
+                mysqli_stmt_bind_param($stmt, 'sis', $hashed, $perms, $uname);
             } else {
-                $stmt = $conn->prepare("UPDATE users SET permissions=? WHERE username=?");
-                $stmt->bind_param('is', $perms, $uname);
+                $stmt = mysqli_prepare($conn, "UPDATE users SET permissions=? WHERE username=?");
+                mysqli_stmt_bind_param($stmt, 'is', $perms, $uname);
             }
-            $stmt->execute();
-            $stmt->close();
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
             $msg = "User \"$uname\" updated.";
         }
         header("Location: users.php?msg=" . urlencode($msg) . "&type=$type");
@@ -111,21 +113,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $uname = trim($_POST['username'] ?? '');
 
         // Protect full-access users
-        $chk = $conn->prepare("SELECT permissions FROM users WHERE username=?");
-        $chk->bind_param('s', $uname);
-        $chk->execute();
-        $existing = $chk->get_result()->fetch_assoc();
-        $chk->close();
+        $chk = mysqli_prepare($conn, "SELECT permissions FROM users WHERE username=?");
+        mysqli_stmt_bind_param($chk, 's', $uname);
+        mysqli_stmt_execute($chk);
+        $chkRes  = mysqli_stmt_get_result($chk);
+        $existing = mysqli_fetch_assoc($chkRes);
+        mysqli_stmt_close($chk);
 
         if (!$existing) {
             $msg = "User not found."; $type = 'error';
         } elseif ((int)$existing['permissions'] === PERM_FULL) {
             $msg = "Cannot delete a Full Access user."; $type = 'error';
         } else {
-            $stmt = $conn->prepare("DELETE FROM users WHERE username=?");
-            $stmt->bind_param('s', $uname);
-            $stmt->execute();
-            $stmt->close();
+            $stmt = mysqli_prepare($conn, "DELETE FROM users WHERE username=?");
+            mysqli_stmt_bind_param($stmt, 's', $uname);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
             $msg = "User \"$uname\" has been permanently deleted.";
         }
         header("Location: users.php?msg=" . urlencode($msg) . "&type=$type");
@@ -134,9 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── Fetch users ──────────────────────────────────────────────
-$users = $conn->query(
+$usersRes = mysqli_query($conn,
     "SELECT username, permissions, created_at FROM users ORDER BY created_at DESC"
-)->fetch_all(MYSQLI_ASSOC);
+);
+$users = [];
+while ($row = mysqli_fetch_assoc($usersRes)) {
+    $users[] = $row;
+}
 
 $permMap = [
     PERM_CLIENT_LIST  => 'View Clients',

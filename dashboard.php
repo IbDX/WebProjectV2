@@ -15,27 +15,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (int)$_SESSION['permissions'] === -
         $title   = trim($_POST['title'] ?? '');
         $content = trim($_POST['content'] ?? '');
         if ($title !== '' && $content !== '') {
-            $stmt = $conn->prepare("INSERT INTO news (title, content, author) VALUES (?, ?, ?)");
-            $stmt->bind_param('sss', $title, $content, $_SESSION['username']);
-            $stmt->execute();
-            $stmt->close();
+            $stmt = mysqli_prepare($conn, "INSERT INTO news (title, content, author) VALUES (?, ?, ?)");
+            mysqli_stmt_bind_param($stmt, 'sss', $title, $content, $_SESSION['username']);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
             $msg = 'News announcement posted.';
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'delete_news') {
         $newsId = (int)($_POST['news_id'] ?? 0);
-        $conn->query("UPDATE news SET is_deleted=1 WHERE id=$newsId");
+        mysqli_query($conn, "UPDATE news SET is_deleted=1 WHERE id=$newsId");
         $msg = 'News announcement deleted.';
     }
 }
 
 // ── Stats ────────────────────────────────────────────────────
-$totalClients = (int)$conn->query("SELECT COUNT(*) FROM clients WHERE is_deleted = 0")->fetch_row()[0];
-$totalUsers   = (int)$conn->query("SELECT COUNT(*) FROM users   WHERE is_deleted = 0")->fetch_row()[0];
-$totalTxns    = (int)$conn->query("SELECT COUNT(*) FROM transactions")->fetch_row()[0];
-$totalRows    = $totalClients + $totalUsers + $totalTxns;
+$r = mysqli_query($conn, "SELECT COUNT(*) FROM clients WHERE is_deleted = 0");
+$totalClients = (int)mysqli_fetch_row($r)[0];
 
-$balanceRow   = $conn->query("SELECT COALESCE(SUM(balance),0) FROM clients WHERE is_deleted = 0")->fetch_row();
-$totalBalance = (float)$balanceRow[0];
+$r = mysqli_query($conn, "SELECT COUNT(*) FROM users WHERE is_deleted = 0");
+$totalUsers = (int)mysqli_fetch_row($r)[0];
+
+$r = mysqli_query($conn, "SELECT COUNT(*) FROM transactions");
+$totalTxns = (int)mysqli_fetch_row($r)[0];
+
+$totalRows = $totalClients + $totalUsers + $totalTxns;
+
+$r = mysqli_query($conn, "SELECT COALESCE(SUM(balance),0) FROM clients WHERE is_deleted = 0");
+$totalBalance = (float)mysqli_fetch_row($r)[0];
 
 // ── Chart: Client registrations per day (last 7 days) ────────
 $chartDays  = [];
@@ -44,7 +50,7 @@ for ($i = 6; $i >= 0; $i--) {
     $chartDays[]   = date('M j', strtotime("-{$i} days"));
     $chartCounts[] = 0;
 }
-$res = $conn->query(
+$res = mysqli_query($conn,
     "SELECT DATE(created_at) AS day, COUNT(*) AS cnt
      FROM clients
      WHERE is_deleted = 0
@@ -52,7 +58,7 @@ $res = $conn->query(
      GROUP BY DATE(created_at)
      ORDER BY day"
 );
-while ($row = $res->fetch_assoc()) {
+while ($row = mysqli_fetch_assoc($res)) {
     $idx = array_search(date('M j', strtotime($row['day'])), $chartDays);
     if ($idx !== false) $chartCounts[$idx] = (int)$row['cnt'];
 }
@@ -63,10 +69,12 @@ $chartData   = json_encode($chartCounts);
 $logPage = max(1, (int)($_GET['lp'] ?? 1));
 $logLimit = 4;
 $logOffset = ($logPage - 1) * $logLimit;
-$totalLogs = (int)$conn->query("SELECT COUNT(*) FROM transactions")->fetch_row()[0];
+
+$r = mysqli_query($conn, "SELECT COUNT(*) FROM transactions");
+$totalLogs = (int)mysqli_fetch_row($r)[0];
 $logPages = max(1, (int)ceil($totalLogs / $logLimit));
 
-$logRes = $conn->query(
+$logRes = mysqli_query($conn,
     "SELECT t.type, t.amount, t.target_account, t.timestamp,
             c.full_name
      FROM transactions t
@@ -74,10 +82,13 @@ $logRes = $conn->query(
      ORDER BY t.timestamp DESC
      LIMIT $logLimit OFFSET $logOffset"
 );
-$logItems = $logRes->fetch_all(MYSQLI_ASSOC);
+$logItems = [];
+while ($row = mysqli_fetch_assoc($logRes)) {
+    $logItems[] = $row;
+}
 
 // ── Permission distribution ───────────────────────────────────
-$permRes = $conn->query(
+$permRes = mysqli_query($conn,
     "SELECT 
         CASE 
             WHEN permissions = -1 THEN 'Full Access'
@@ -89,32 +100,43 @@ $permRes = $conn->query(
      GROUP BY perm_group
      ORDER BY cnt DESC"
 );
-$permDist = $permRes->fetch_all(MYSQLI_ASSOC);
+$permDist = [];
+while ($row = mysqli_fetch_assoc($permRes)) {
+    $permDist[] = $row;
+}
 $totalU = max(1, $totalUsers);
 
 // ── Bank News Pagination ────────────────────────────────────
 $newsPage = max(1, (int)($_GET['np'] ?? 1));
 $newsLimit = 3;
 $newsOffset = ($newsPage - 1) * $newsLimit;
-$totalNews = (int)$conn->query("SELECT COUNT(*) FROM news WHERE is_deleted = 0")->fetch_row()[0];
+
+$r = mysqli_query($conn, "SELECT COUNT(*) FROM news WHERE is_deleted = 0");
+$totalNews = (int)mysqli_fetch_row($r)[0];
 $newsPages = max(1, (int)ceil($totalNews / $newsLimit));
 
-$newsRes = $conn->query(
+$newsRes = mysqli_query($conn,
     "SELECT id, title, content, author, created_at 
      FROM news WHERE is_deleted = 0 
      ORDER BY created_at DESC LIMIT $newsLimit OFFSET $newsOffset"
 );
-$newsItems = $newsRes->fetch_all(MYSQLI_ASSOC);
+$newsItems = [];
+while ($row = mysqli_fetch_assoc($newsRes)) {
+    $newsItems[] = $row;
+}
 
 
 // ── Recently modified clients (last 5) ───────────────────────
-$recentRes = $conn->query(
+$recentRes = mysqli_query($conn,
     "SELECT account_number, full_name, balance, updated_at
      FROM clients WHERE is_deleted = 0
      ORDER BY updated_at DESC
      LIMIT 6"
 );
-$recentClients = $recentRes->fetch_all(MYSQLI_ASSOC);
+$recentClients = [];
+while ($row = mysqli_fetch_assoc($recentRes)) {
+    $recentClients[] = $row;
+}
 
 include 'includes/header.php';
 ?>

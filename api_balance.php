@@ -19,13 +19,14 @@ if (!$acc) {
     exit;
 }
 
-$stmt = $conn->prepare(
+$stmt = mysqli_prepare($conn,
     "SELECT full_name, balance FROM clients WHERE account_number = ? AND is_deleted = 0 LIMIT 1"
 );
-$stmt->bind_param('s', $acc);
-$stmt->execute();
-$row = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+mysqli_stmt_bind_param($stmt, 's', $acc);
+mysqli_stmt_execute($stmt);
+$res = mysqli_stmt_get_result($stmt);
+$row = mysqli_fetch_assoc($res);
+mysqli_stmt_close($stmt);
 
 if (!$row) {
     echo json_encode(['error' => 'Account not found']);

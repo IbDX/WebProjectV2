@@ -27,22 +27,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Account number, PIN, and full name are required.'; $type = 'error';
         } else {
             // Duplicate check
-            $chk = $conn->prepare("SELECT 1 FROM clients WHERE account_number = ?");
-            $chk->bind_param('s', $acc);
-            $chk->execute();
-            $exists = (bool)$chk->get_result()->fetch_row();
-            $chk->close();
+            $chk = mysqli_prepare($conn, "SELECT 1 FROM clients WHERE account_number = ?");
+            mysqli_stmt_bind_param($chk, 's', $acc);
+            mysqli_stmt_execute($chk);
+            $chkRes = mysqli_stmt_get_result($chk);
+            $exists = (bool)mysqli_fetch_row($chkRes);
+            mysqli_stmt_close($chk);
 
             if ($exists) {
                 $msg = "Account number \"$acc\" already exists."; $type = 'error';
             } else {
-                $stmt = $conn->prepare(
+                $stmt = mysqli_prepare($conn,
                     "INSERT INTO clients (account_number, pin_code, full_name, phone, balance)
                      VALUES (?, ?, ?, ?, ?)"
                 );
-                $stmt->bind_param('ssssd', $acc, $pin, $name, $ph, $bal);
-                $stmt->execute();
-                $stmt->close();
+                mysqli_stmt_bind_param($stmt, 'ssssd', $acc, $pin, $name, $ph, $bal);
+                mysqli_stmt_execute($stmt);
+                mysqli_stmt_close($stmt);
                 $msg = "Client \"$name\" added successfully.";
             }
         }
@@ -61,14 +62,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$acc || !$name) {
             $msg = 'Missing required fields.'; $type = 'error';
         } else {
-            $stmt = $conn->prepare(
+            $stmt = mysqli_prepare($conn,
                 "UPDATE clients SET pin_code=?, full_name=?, phone=?, balance=?
                  WHERE account_number=? AND is_deleted=0"
             );
-            $stmt->bind_param('sssds', $pin, $name, $ph, $bal, $acc);
-            $stmt->execute();
-            $affected = $stmt->affected_rows;
-            $stmt->close();
+            mysqli_stmt_bind_param($stmt, 'sssds', $pin, $name, $ph, $bal, $acc);
+            mysqli_stmt_execute($stmt);
+            $affected = mysqli_stmt_affected_rows($stmt);
+            mysqli_stmt_close($stmt);
             $msg = $affected > 0 ? "Client \"$acc\" updated." : "No changes made.";
         }
         header("Location: clients.php?msg=" . urlencode($msg) . "&type=$type");
@@ -79,35 +80,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete' && has_permission(PERM_DEL_CLIENT)) {
         $acc = trim($_POST['account_number'] ?? '');
         if ($acc) {
-            $conn->begin_transaction();
+            mysqli_begin_transaction($conn);
             try {
                 // Verify the client exists before attempting deletion
-                $chk = $conn->prepare("SELECT full_name FROM clients WHERE account_number = ? LIMIT 1");
-                $chk->bind_param('s', $acc);
-                $chk->execute();
-                $clientRow = $chk->get_result()->fetch_assoc();
-                $chk->close();
+                $chk = mysqli_prepare($conn, "SELECT full_name FROM clients WHERE account_number = ? LIMIT 1");
+                mysqli_stmt_bind_param($chk, 's', $acc);
+                mysqli_stmt_execute($chk);
+                $chkRes = mysqli_stmt_get_result($chk);
+                $clientRow = mysqli_fetch_assoc($chkRes);
+                mysqli_stmt_close($chk);
 
                 if (!$clientRow) {
                     throw new Exception('Client not found.');
                 }
 
                 // Delete associated transactions first (FK: transactions → clients ON DELETE RESTRICT)
-                $delTxn = $conn->prepare("DELETE FROM transactions WHERE account_number = ?");
-                $delTxn->bind_param('s', $acc);
-                $delTxn->execute();
-                $delTxn->close();
+                $delTxn = mysqli_prepare($conn, "DELETE FROM transactions WHERE account_number = ?");
+                mysqli_stmt_bind_param($delTxn, 's', $acc);
+                mysqli_stmt_execute($delTxn);
+                mysqli_stmt_close($delTxn);
 
                 // Now permanently delete the client row
-                $delClient = $conn->prepare("DELETE FROM clients WHERE account_number = ?");
-                $delClient->bind_param('s', $acc);
-                $delClient->execute();
-                $delClient->close();
+                $delClient = mysqli_prepare($conn, "DELETE FROM clients WHERE account_number = ?");
+                mysqli_stmt_bind_param($delClient, 's', $acc);
+                mysqli_stmt_execute($delClient);
+                mysqli_stmt_close($delClient);
 
-                $conn->commit();
+                mysqli_commit($conn);
                 $msg = "Client \"$acc\" and all associated transactions have been permanently deleted.";
             } catch (Exception $ex) {
-                $conn->rollback();
+                mysqli_rollback($conn);
                 $msg = 'Deletion failed: ' . $ex->getMessage();
                 $type = 'error';
             }
@@ -126,12 +128,16 @@ $openAdd = isset($_GET['open']) && $_GET['open'] === 'add';
 $sql = "SELECT account_number, pin_code, full_name, phone, balance, updated_at
         FROM clients WHERE is_deleted = 0";
 if ($search !== '') {
-    $safe = $conn->real_escape_string($search);
+    $safe = mysqli_real_escape_string($conn, $search);
     $sql .= " AND (account_number LIKE '%$safe%' OR full_name LIKE '%$safe%' OR phone LIKE '%$safe%')";
 }
 $sql .= " ORDER BY updated_at DESC";
 
-$clients = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
+$clientsRes = mysqli_query($conn, $sql);
+$clients = [];
+while ($row = mysqli_fetch_assoc($clientsRes)) {
+    $clients[] = $row;
+}
 
 include 'includes/header.php';
 ?>
