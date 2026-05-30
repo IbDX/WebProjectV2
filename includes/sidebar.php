@@ -17,7 +17,7 @@ $initials = strtoupper(substr($uname, 0, 2));
 
     <!-- Logo -->
     <div class="sidebar-logo">
-        <div class="logo-icon">PB</div>
+        <div class="logo-icon">Z+</div>
         <div>
             <div class="logo-text">Prototype Bank</div>
             <div class="logo-sub">Management System</div>
