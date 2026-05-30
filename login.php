@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Green header -->
         <div class="login-head">
-            <div class="login-logo-box">PB</div>
+            <div class="login-logo-box">Z+</div>
             <div class="login-title">Prototype Bank</div>
             <div class="login-subtitle">Management System — Sign In to continue</div>
         </div>
