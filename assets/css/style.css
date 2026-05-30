@@ -683,7 +683,7 @@ tbody td {
 }
 
 .form-control.dark::placeholder {
-  color: rgba(59, 59, 59, 0.35);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .form-control.dark:focus {

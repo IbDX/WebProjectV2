@@ -126,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('s', $uname);
             $stmt->execute();
             $stmt->close();
-            $msg = "User \"$uname\" removed (logical delete).";
+            $msg = "User \"$uname\" has been successfully deleted.";
         }
         header("Location: users.php?msg=" . urlencode($msg) . "&type=$type");
         exit;
@@ -347,21 +347,26 @@ include 'includes/header.php';
 <div class="modal-overlay" id="modalDeleteUser">
     <div class="modal modal-sm">
         <div class="modal-header">
-            <span class="modal-title">🗑️ Confirm Delete</span>
+            <span class="modal-title">🗑️ Delete User</span>
             <button class="modal-close" data-close-modal="modalDeleteUser">×</button>
         </div>
         <div class="modal-body">
-            <div class="alert alert-warning">
-                ⚠ This is a <strong>logical delete</strong> — the user record will be hidden.
+            <p style="font-size:14px;color:var(--text-dark);margin-bottom:12px">
+                Are you sure you want to delete the following user?
+            </p>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
+                <strong id="delUserLabel" style="font-size:14px"></strong>
             </div>
-            <p style="font-size:14px">Delete user <strong id="delUserLabel"></strong>?</p>
+            <div class="alert alert-warning" style="margin-bottom:0">
+                ⚠ This user will be deactivated and will no longer be able to log in. The record is preserved for audit purposes.
+            </div>
         </div>
         <form method="POST" action="users.php">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="username" id="delUsernameInput">
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-close-modal="modalDeleteUser">Cancel</button>
-                <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                <button type="submit" class="btn btn-danger">Delete User</button>
             </div>
         </form>
     </div>

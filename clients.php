@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('s', $acc);
             $stmt->execute();
             $stmt->close();
-            $msg = "Client \"$acc\" removed (logical delete).";
+            $msg = "Client \"$acc\" has been successfully deleted.";
         } else {
             $msg = 'Invalid account.'; $type = 'error';
         }
@@ -318,24 +318,26 @@ include 'includes/header.php';
 <div class="modal-overlay" id="modalDeleteClient">
     <div class="modal modal-sm">
         <div class="modal-header">
-            <span class="modal-title">🗑️ Confirm Delete</span>
+            <span class="modal-title">🗑️ Delete Client</span>
             <button class="modal-close" data-close-modal="modalDeleteClient">×</button>
         </div>
         <div class="modal-body">
-            <div class="alert alert-warning">
-                ⚠ This is a <strong>logical delete</strong> — the record will be hidden but kept in the database.
-            </div>
-            <p style="font-size:14px;color:var(--text-dark)">
-                Are you sure you want to remove
-                <strong id="delClientName"></strong>?
+            <p style="font-size:14px;color:var(--text-dark);margin-bottom:12px">
+                Are you sure you want to delete the following client?
             </p>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
+                <strong id="delClientName" style="font-size:14px"></strong>
+            </div>
+            <div class="alert alert-warning" style="margin-bottom:0">
+                ⚠ This client will be deactivated and hidden from all views. The record is preserved in the database for audit purposes.
+            </div>
         </div>
         <form method="POST" action="clients.php">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="account_number" id="delAccountNumber">
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-close-modal="modalDeleteClient">Cancel</button>
-                <button type="submit" class="btn btn-danger">Yes, Delete</button>
+                <button type="submit" class="btn btn-danger">Delete Client</button>
             </div>
         </form>
     </div>
